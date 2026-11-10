@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:orders
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+app:
+  payment:
+    base-url: http://localhost:9999/mock-payments

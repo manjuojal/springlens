@@ -1,0 +1,21 @@
+{
+  "name": "spring-lens",
+  "version": "1.0.0",
+  "description": "Analyze Spring Boot applications and generate interactive architecture, startup, request-flow, API, config and data-model diagrams.",
+  "main": "src/server.js",
+  "bin": {
+    "spring-lens": "bin/spring-lens.js"
+  },
+  "scripts": {
+    "start": "node bin/spring-lens.js serve",
+    "analyze": "node bin/spring-lens.js analyze"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cytoscape": "^3.30.2",
+    "cytoscape-dagre": "^2.5.0",
+    "dagre": "^0.8.5",
+    "js-yaml": "^4.1.0",
+    "mermaid": "^10.9.1"
+  }
+}

@@ -1,0 +1,46 @@
+2026-11-10T10:15:30.007+00:00  INFO 4242 --- [order-service] [           main] [] c.a.orders.OrderServiceApplication       : Starting OrderServiceApplication using Java 21
+2026-11-10T10:15:30.014+00:00  INFO 4242 --- [order-service] [           main] [] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8081 (http) with context path '/orders-api'
+2026-11-10T10:15:30.021+00:00  INFO 4242 --- [order-service] [           main] [] c.a.orders.OrderServiceApplication       : Started OrderServiceApplication in 4.21 seconds
+2026-11-10T10:15:30.141+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.security.TenantFilter         : Incoming request POST /orders-api/api/v1/orders (tenant acme-eu)
+2026-11-10T10:15:30.148+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.OrderServiceImpl      : Placing order for customer 42 with 2 items
+2026-11-10T10:15:30.151+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.security.TenantFilter         : Incoming request POST /orders-api/api/v1/orders (tenant acme-us)
+2026-11-10T10:15:30.158+00:00 DEBUG 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.OrderServiceImpl      : Reserving 3 x SKU-LAPTOP-15
+2026-11-10T10:15:30.160+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.service.OrderServiceImpl      : Placing order for customer 7 with 1 items
+2026-11-10T10:15:30.191+00:00 DEBUG 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.OrderServiceImpl      : Reserving 1 x SKU-DOCK-USB-C
+2026-11-10T10:15:30.195+00:00 DEBUG 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.service.OrderServiceImpl      : Reserving 2 x SKU-MOUSE-01
+2026-11-10T10:15:30.217+00:00 DEBUG 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.PricingService        : Order subtotal is 4087.00
+2026-11-10T10:15:30.218+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.PricingService        : Applying 5% discount on total 4087.00
+2026-11-10T10:15:30.224+00:00 DEBUG 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.service.PricingService        : Order subtotal is 49.90
+2026-11-10T10:15:30.242+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.service.OrderServiceImpl      : Order 1001 saved with total 3882.65
+2026-11-10T10:15:30.245+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.service.OrderServiceImpl      : Order 1002 saved with total 49.90
+2026-11-10T10:15:30.246+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.client.PaymentGateway         : Authorizing payment of 3882.65 for order 1001
+2026-11-10T10:15:30.251+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.client.PaymentGateway         : Authorizing payment of 49.90 for order 1002
+2026-11-10T10:15:30.891+00:00 ERROR 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.client.PaymentGateway         : Payment provider rejected order 1001: HTTP 402
+2026-11-10T10:15:30.903+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.client.PaymentGateway         : Payment authorized for order 1002: AUTH-7731-XK
+2026-11-10T10:15:30.907+00:00 ERROR 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.web.GlobalExceptionHandler    : Request failed: Payment declined for order 1001
+com.acme.orders.client.PaymentDeclinedException: Payment declined for order 1001
+	at com.acme.orders.client.PaymentGateway.authorize(PaymentGateway.java:40)
+	at com.acme.orders.service.OrderServiceImpl.placeOrder(OrderServiceImpl.java:77)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355)
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119)
+	at com.acme.orders.service.OrderServiceImpl$$SpringCGLIB$$0.placeOrder(<generated>)
+	at com.acme.orders.web.OrderController.create(OrderController.java:34)
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+	at com.acme.orders.security.TenantFilter.doFilterInternal(TenantFilter.java:31)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	... 48 common frames omitted
+Caused by: org.springframework.web.reactive.function.client.WebClientResponseException$PaymentRequired: 402 Payment Required from POST https://payments.acme.com/api/v2/authorizations
+	at org.springframework.web.reactive.function.client.WebClientResponseException.create(WebClientResponseException.java:336)
+	at reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:129)
+	at reactor.core.publisher.Mono.block(Mono.java:1807)
+	at com.acme.orders.client.PaymentGateway.authorize(PaymentGateway.java:35)
+	... 61 common frames omitted
+2026-11-10T10:15:30.910+00:00  INFO 4242 --- [order-service] [nio-8081-exec-3] [c0ffee42-9b1e-4d0a-8c5f-1a2b3c4d5e6f] c.a.orders.security.TenantFilter         : Completed POST /orders-api/api/v1/orders with status 402
+2026-11-10T10:15:30.919+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.service.OrderServiceImpl      : Order 1002 published to order-events
+2026-11-10T10:15:30.923+00:00  INFO 4242 --- [order-service] [nio-8081-exec-5] [5b7e1d20-3f4a-4c6b-9e8d-7a6b5c4d3e2f] c.a.orders.security.TenantFilter         : Completed POST /orders-api/api/v1/orders with status 201
+2026-11-10T10:15:33.123+00:00  INFO 4242 --- [order-service] [nio-8081-exec-8] [9a8b7c6d-1e2f-4a3b-8c9d-0e1f2a3b4c5d] c.a.orders.security.TenantFilter         : Incoming request POST /orders-api/api/v1/orders (tenant acme-eu)
+2026-11-10T10:15:33.130+00:00  INFO 4242 --- [order-service] [nio-8081-exec-8] [9a8b7c6d-1e2f-4a3b-8c9d-0e1f2a3b4c5d] c.a.orders.service.OrderServiceImpl      : Placing order for customer 99 with 1 items
+2026-11-10T10:15:33.145+00:00  WARN 4242 --- [order-service] [nio-8081-exec-8] [9a8b7c6d-1e2f-4a3b-8c9d-0e1f2a3b4c5d] c.a.orders.service.OrderServiceImpl      : Customer 99 is blocked, order refused
+2026-11-10T10:15:33.147+00:00  WARN 4242 --- [order-service] [nio-8081-exec-8] [9a8b7c6d-1e2f-4a3b-8c9d-0e1f2a3b4c5d] c.a.orders.web.GlobalExceptionHandler    : Request rejected: Customer 99 is blocked
+2026-11-10T10:15:33.148+00:00  INFO 4242 --- [order-service] [nio-8081-exec-8] [9a8b7c6d-1e2f-4a3b-8c9d-0e1f2a3b4c5d] c.a.orders.security.TenantFilter         : Completed POST /orders-api/api/v1/orders with status 403

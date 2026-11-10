@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: order-service
+  profiles:
+    active: dev
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/orders}
+    username: ${DB_USER:orders}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      connection-timeout: 3000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+  cache:
+    type: redis
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+  mail:
+    host: smtp.acme.internal
+    port: 587
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth.acme.com/realms/shop
+
+server:
+  port: 8081
+  servlet:
+    context-path: /orders-api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  kafka:
+    order-topic: order-events
+    payment-topic: payment-events
+  payment:
+    base-url: https://payments.acme.com/api
+    timeout-ms: 2500
+  inventory:
+    url: http://inventory-service:8080
+  cleanup:
+    cron: "0 0/30 * * * *"

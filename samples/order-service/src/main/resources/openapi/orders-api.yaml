@@ -1,0 +1,71 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  version: 1.2.0
+  description: Public API of the order service.
+servers:
+  - url: https://api.acme.com/orders-api
+paths:
+  /api/v1/orders:
+    get:
+      operationId: listOrders
+      summary: List orders of the current customer
+      tags: [orders]
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Order' } } } } }
+    post:
+      operationId: createOrder
+      summary: Place a new order
+      tags: [orders]
+      requestBody:
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateOrderRequest' } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+  /api/v1/orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      parameters: [ { name: id, in: path, required: true, schema: { type: integer } } ]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }, "404": { description: Not found } }
+  /api/v1/orders/{id}/cancel:
+    post:
+      operationId: cancelOrder
+      tags: [orders]
+      parameters: [ { name: id, in: path, required: true, schema: { type: integer } } ]
+      responses: { "204": { description: Cancelled } }
+  /api/v1/orders/{id}/refund:
+    post:
+      operationId: refundOrder
+      summary: Refund an order (planned)
+      tags: [orders]
+      parameters: [ { name: id, in: path, required: true, schema: { type: integer } } ]
+      responses: { "202": { description: Accepted } }
+  /api/v1/products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      responses: { "200": { description: OK } }
+components:
+  schemas:
+    Order:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer }
+        status: { type: string }
+        total: { type: number }
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
+    OrderItem:
+      type: object
+      properties:
+        sku: { type: string }
+        quantity: { type: integer }
+    CreateOrderRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/OrderItem' } }
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
