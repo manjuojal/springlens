@@ -6,13 +6,20 @@ It works by static analysis only. You don't need to build or run the target app,
 
 ## Run
 
+You don't need to install anything except [Node.js](https://nodejs.org) 18 or newer. There's no `npm install` step and no internet access is needed, because all libraries are bundled in `vendor/`.
+
+- **Windows:** double-click `start.bat`. It opens your browser automatically.
+- **macOS / Linux:** run `./start.sh`.
+- **Any OS:** run `npm start`, then open http://localhost:7070.
+
+Command-line use:
+
 ```bash
-npm install
-npm start                # → http://localhost:7070
-# or
 node bin/spring-lens.js serve --port 7070 --open
 node bin/spring-lens.js analyze path/to/project --out report.json   # CLI summary / JSON
 ```
+
+To share Spring Lens, copy or zip the folder **without** `data/`. That folder holds your own analyses.
 
 Enter a local project folder on the home page, such as `D:\code\order-service`. Each analysis is stored in `data/analyses/` and listed on `/browse`.
 
@@ -22,10 +29,10 @@ Spring Lens runs fully offline and makes no outbound connections.
 
 - It only reads local folders. Git, GitHub and other URLs are rejected. To analyze a remote repo, clone it yourself and enter the local path.
 - The server listens on `127.0.0.1` only and rejects requests whose `Host` header isn't localhost. This blocks DNS-rebinding attacks from websites open in your browser.
-- A Content-Security-Policy makes the browser block any request to an origin other than the local server. All JavaScript libraries are served from `node_modules`, with no CDNs, fonts or analytics.
+- A Content-Security-Policy makes the browser block any request to an origin other than the local server. All JavaScript libraries are served from the bundled `vendor/` folder, with no CDNs, fonts or analytics.
 - Analyses are stored only in `data/` (git-ignored). Delete that folder to clear everything.
 
-`npm install` is the only step that uses the network.
+No step uses the network, not even setup: there is no `npm install`.
 
 The repo includes a demo project at `samples/order-service`. It uses Kafka, Feign, WebClient, Redis, JPA, Security/OAuth2, events, `@Scheduled`, an OpenAPI YAML spec and docker-compose.
 

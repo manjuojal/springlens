@@ -52,7 +52,11 @@ function analyzeProject(root, opts = {}) {
     if (f.includes('/') && !/(^|\/)(resources|config)\//.test(f)) continue;
     try { cfgDocs.push(...parseConfigFile(read(root, f), f)); } catch (e) { warnings.push(`${f}: ${e.message}`); }
   }
+  // Spring Cloud Config: pull this app's files from a native config repository next to the project
+  const externalFiles = [];
+  try { externalFiles.push(...findConfigServerFiles(root, cfgDocs, cfgDocs.push.bind(cfgDocs), warnings)); } catch (e) { warnings.push('Config server lookup failed: ' + e.message); }
   const config = analyzeConfig(cfgDocs, build.dependencies);
+  config.externalFiles = externalFiles;
 
   /* infra / openapi */
   const infra = { compose: [], k8s: [], dockerfiles: [], openapi: [] };
@@ -183,6 +187,7 @@ function analyzeProject(root, opts = {}) {
     aspects: model.aspects,
     caches: model.caches,
     entities: model.entities,
+    sqlTables: model.sqlTables,
     propertyUsages: model.propertyUsages,
     profilesInCode: model.profilesInCode,
     security: model.security,
@@ -200,6 +205,65 @@ function analyzeProject(root, opts = {}) {
 }
 
 function safe(fn) { try { return fn(); } catch { return null; } }
+
+/**
+ * If the app uses Spring Cloud Config (spring.cloud.config.uri / spring.config.import=configserver:),
+ * look for a *native* config repository in the surrounding folders (e.g. ../modefin-config/src/main/resources/config-dev/)
+ * and add `<app-name>.yml`, `<app-name>-<profile>.yml` and the shared `application.yml` found there.
+ * Folder suffixes become profiles: config → default, config-dev → dev, config-prod → prod.
+ */
+function findConfigServerFiles(root, docs, add, warnings) {
+  const all = docs.flatMap((d) => d.props);
+  const get = (k) => all.find((p) => p.key === k)?.value;
+  const usesServer = get('spring.cloud.config.uri') || /configserver:/.test(get('spring.config.import') || '') || get('spring.cloud.config.discovery.enabled') === 'true';
+  const appName = get('spring.application.name');
+  if (!usesServer || !appName || /\$\{/.test(appName)) return [];
+  const fs = require('fs');
+  const path = require('path');
+  // search the parent (and grandparent) folder, skipping the project itself
+  const found = [];
+  const esc = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const fileRe = new RegExp(`^${esc}(-([\\w.-]+))?\\.(ya?ml|properties)$`, 'i');
+  for (const base of [path.dirname(root), path.dirname(path.dirname(root))]) {
+    if (!base || base === root) continue;
+    const stack = [[base, 0]];
+    let visited = 0;
+    while (stack.length && visited < 6000) {
+      const [dir, depth] = stack.pop();
+      visited++;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) {
+          if (depth < 7 && !/^(\.|node_modules|target|build|out|bin|\.git|src\/test)/.test(e.name) && e.name !== 'test' && path.resolve(full) !== path.resolve(root)) stack.push([full, depth + 1]);
+        } else if (fileRe.test(e.name) && !full.split(path.sep).includes('test')) found.push(full);
+      }
+    }
+    if (found.length) break;
+  }
+  const out = [];
+  const seen = new Set();
+  for (const full of found) {
+    if (seen.has(full)) continue; seen.add(full);
+    const rel = path.relative(root, full).split(path.sep).join('/');
+    const folder = path.basename(path.dirname(full));
+    const fm = fileRe.exec(path.basename(full));
+    const folderProfile = (/^config[-_](\w+)$/i.exec(folder) || [])[1];
+    const profile = fm[2] || folderProfile || 'default';
+    let text;
+    try { text = fs.readFileSync(full, 'utf8'); } catch { continue; }
+    try {
+      for (const d of parseConfigFile(text, path.basename(full))) {
+        const doc = { ...d, file: rel, origin: 'config-server', profile: d.activation ? d.profile : profile };
+        add(doc);
+      }
+      out.push(rel);
+    } catch (e) { warnings.push(`${rel}: ${e.message}`); }
+  }
+  if (out.length) warnings.push(`Loaded ${out.length} Config Server file(s) for "${appName}" from a native config repository: ${out.slice(0, 4).join(', ')}${out.length > 4 ? '…' : ''}`);
+  return out;
+}
 function commonPrefix(list) {
   if (!list.length) return '';
   const parts = list.map((p) => p.split('.'));

@@ -1,5 +1,5 @@
 'use strict';
-const yaml = require('js-yaml');
+const yaml = require('../../vendor/js-yaml/js-yaml.js');
 
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'trace'];
 

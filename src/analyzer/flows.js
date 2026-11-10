@@ -158,6 +158,17 @@ function buildFlows(model) {
       base.signature = `${c.receiver}.${c.method}(${c.args.length > 40 ? '…' : c.args})`;
     } else if (infra.kind === 'db') {
       base.query = strs.find((s) => /\b(select|insert|update|delete|merge|with)\b/i.test(s)) || null;
+      // SQL held in a variable: String sql = "insert into student(...) values(" + ... + ")"; template.update(sql)
+      const argVar = (/^\s*([a-zA-Z_$][\w$]*)\s*(,|$)/.exec(c.args) || [])[1];
+      if (!base.query && argVar) {
+        const asg = new RegExp(`\\b${argVar}\\s*=\\s*([\\s\\S]*?);`).exec(restored);
+        if (asg) { const lits = (asg[1].match(/"((?:[^"\\]|\\.)*)"/g) || []).map((x) => x.slice(1, -1)); const q = lits.join('…'); if (/\b(select|insert|update|delete|merge|with|call)\b/i.test(q)) base.query = q; }
+      }
+      if (base.query) {
+        const tm = /\b(?:from|into|update|join)\s+([\w.]+)/i.exec(base.query);
+        base.table = tm ? tm[1] : null;
+        base.operation = (/^\s*(\w+)/.exec(base.query) || [])[1]?.toUpperCase() || null;
+      }
       base.signature = `${c.method}(${base.query ? '"' + (base.query.length > 50 ? base.query.slice(0, 47) + '…' : base.query) + '"' : '…'})`;
     } else {
       base.signature = `${c.method}(…)`;

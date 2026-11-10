@@ -11,11 +11,6 @@
     "analyze": "node bin/spring-lens.js analyze"
   },
   "license": "MIT",
-  "dependencies": {
-    "cytoscape": "^3.30.2",
-    "cytoscape-dagre": "^2.5.0",
-    "dagre": "^0.8.5",
-    "js-yaml": "^4.1.0",
-    "mermaid": "^10.9.1"
-  }
+  "dependencies": {},
+  "comment": "No npm dependencies: all third-party libraries are vendored in ./vendor (see vendor/README.md) so the app runs fully offline."
 }

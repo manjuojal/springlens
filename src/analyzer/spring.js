@@ -48,6 +48,75 @@ function buildModel(parsedFiles) {
     return cands[0];
   }
 
+  /* --------------- constants ---------------------
+     static final String constants (incl. interface constants and nested constant holders) so that
+     @FeignClient(name = Constants.BASE) or @PostMapping(Constants.API + Constants.PATH) resolve
+     to real values. */
+  const WELL_KNOWN = {
+    'MediaType.APPLICATION_JSON_VALUE': 'application/json', 'MediaType.APPLICATION_XML_VALUE': 'application/xml', 'MediaType.TEXT_PLAIN_VALUE': 'text/plain',
+    'MediaType.APPLICATION_FORM_URLENCODED_VALUE': 'application/x-www-form-urlencoded', 'MediaType.MULTIPART_FORM_DATA_VALUE': 'multipart/form-data', 'MediaType.ALL_VALUE': '*/*',
+    'MediaType.TEXT_HTML_VALUE': 'text/html', 'MediaType.APPLICATION_OCTET_STREAM_VALUE': 'application/octet-stream', 'MediaType.APPLICATION_PDF_VALUE': 'application/pdf',
+  };
+  const constCache = new Map();
+  function constantValue(expr, ctxType, depth = 0) {
+    if (depth > 8) return null;
+    const e = expr.trim();
+    if (WELL_KNOWN[e] || WELL_KNOWN[e.split('.').slice(-2).join('.')]) return WELL_KNOWN[e] || WELL_KNOWN[e.split('.').slice(-2).join('.')];
+    const key = (ctxType ? ctxType.fqn : '') + '|' + e;
+    if (constCache.has(key)) return constCache.get(key);
+    constCache.set(key, null); // cycle guard
+    const parts = e.split('.');
+    const field = parts.pop();
+    const owners = [];
+    if (parts.length) {
+      const owner = resolve(parts[parts.length - 1], ctxType);
+      if (owner) owners.push(owner);
+      else for (const t of byName.get(parts[parts.length - 1]) || []) owners.push(t);
+    } else if (ctxType) {
+      // bare name: own class, outer classes, super types, then static imports
+      for (let t = ctxType; t; t = t.outer ? byFqn.get(t.outer) : null) { owners.push(t); owners.push(...allSupersSafe(t)); }
+      for (const imp of ctxType._file.imports.filter((i) => i.static && i.name.endsWith('.' + field))) { const o = byFqn.get(imp.name.slice(0, -field.length - 1)); if (o) owners.push(o); }
+      for (const imp of ctxType._file.imports.filter((i) => i.static && i.name.endsWith('.*'))) { const o = byFqn.get(imp.name.slice(0, -2)); if (o) owners.push(o); }
+    }
+    let val = null;
+    for (const o of owners) {
+      const f = o.fields.find((x) => x.name === field && x.initializer != null);
+      if (f) { val = evalStringExpr(f.initializer, o, depth + 1); if (val != null) break; }
+    }
+    constCache.set(key, val);
+    return val;
+  }
+  function evalStringExpr(text, ctxType, depth) {
+    const pieces = splitPlus(text);
+    let out = '';
+    for (const p of pieces) {
+      const s = p.trim();
+      if (/^"(?:[^"\\]|\\.)*"$/.test(s)) { try { out += JSON.parse(s); } catch { out += s.slice(1, -1); } continue; }
+      if (/^-?\d+(\.\d+)?[LlDdFf]?$/.test(s)) { out += s.replace(/[LlDdFf]$/, ''); continue; }
+      if (/^[A-Za-z_$][\w$.]*$/.test(s)) { const v = constantValue(s, ctxType, depth); if (v == null) return null; out += v; continue; }
+      return null;
+    }
+    return out;
+  }
+  function splitPlus(text) { const out = []; let d = 0; let cur = ''; let inStr = false; for (let i = 0; i < text.length; i++) { const c = text[i]; if (c === '"' && text[i - 1] !== '\\') inStr = !inStr; if (!inStr) { if ('({['.includes(c)) d++; else if (')}]'.includes(c)) d--; } if (c === '+' && d === 0 && !inStr) { out.push(cur); cur = ''; } else cur += c; } out.push(cur); return out; }
+  function allSupersSafe(t, seen = new Set()) {
+    const out = [];
+    for (const s of [...t.extends, ...t.implements]) { const r = resolve(s, t); if (r && !seen.has(r.fqn)) { seen.add(r.fqn); out.push(r, ...allSupersSafe(r, seen)); } }
+    return out;
+  }
+  const MARK = /\u0003([^\u0004]+)\u0004/g;
+  const resolveMarks = (v, t) => {
+    if (typeof v === 'string') return v.includes('\u0003') ? v.replace(MARK, (m, expr) => { const c = constantValue(expr, t); return c != null ? c : expr; }) : v;
+    if (Array.isArray(v)) return v.map((x) => resolveMarks(x, t));
+    return v;
+  };
+  const fixAnnos = (annos, t) => { for (const a of annos || []) for (const k of Object.keys(a.attrs)) a.attrs[k] = resolveMarks(a.attrs[k], t); };
+  for (const t of types) {
+    fixAnnos(t.annotations, t);
+    for (const f of t.fields) fixAnnos(f.annotations, t);
+    for (const m of [...t.methods, ...t.constructors]) { fixAnnos(m.annotations, t); for (const p of m.params) fixAnnos(p.annotations, t); }
+  }
+
   /* --------------- hierarchy ------------------- */
   const implementors = new Map(); // fqn(interface/superclass) -> [fqn]
   for (const t of types) {
@@ -178,6 +247,11 @@ function buildModel(parsedFiles) {
       for (const r of resolveBeans(d.typeName, t, d.typeArgs)) if (r.fqn && r.fqn !== t.fqn) deps.push({ target: r.fqn, field: d.name, via: d.via, through: r.via || null, line: d.line });
     }
     const infra = t.injections.filter((d) => INFRA_TYPES[d.typeName]).map((d) => ({ field: d.name, type: d.typeName, ...INFRA_TYPES[d.typeName] }));
+    // infrastructure fields created by hand, e.g. `JdbcTemplate template; … template = new JdbcTemplate(dataSource)`
+    for (const f of t.fields) {
+      if (f.modifiers.includes('static') || !INFRA_TYPES[f.typeInfo.name] || infra.some((i) => i.field === f.name)) continue;
+      infra.push({ field: f.name, type: f.typeInfo.name, ...INFRA_TYPES[f.typeInfo.name], manual: true });
+    }
     return {
       id: t.fqn, name: t.name, pkg: t.pkg, kind: t.kind, file: t.file, line: t.line, endLine: t.endLine, outer: t.outer,
       stereotype: t.stereotype, layer: t.layer, isBean: !!t.isBean, registeredBy: t.registeredBy || null,
@@ -333,6 +407,41 @@ function buildModel(parsedFiles) {
     entities.push({ id: t.fqn, name: t.name, kind: has(t, 'Document') ? 'document' : has(t, 'Embeddable') ? 'embeddable' : has(t, 'RedisHash') ? 'redis-hash' : 'table', table: str(tbl?.attrs.name ?? tbl?.attrs.value ?? tbl?.attrs.collection) || t.name.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase(), parent: t.extends[0] || null, fields, file: t.file, line: t.line, repositories: classes.filter((c) => c.entity === t.fqn).map((c) => c.id) });
   }
 
+  /* --------------- tables referenced in SQL -------
+     JDBC / native SQL strings in method bodies and @Query(nativeQuery = true). Useful for projects
+     that use JdbcTemplate, stored procedures or plain JDBC instead of JPA entities. */
+  const sqlTables = new Map();
+  const SQL_START = /^\s*(select|insert|update|delete|merge|with|call|exec)\b/i;
+  const addSql = (sql, t, member, line, native) => {
+    const op = (SQL_START.exec(sql) || [])[1]?.toUpperCase() || 'SQL';
+    const re = /\b(from|join|into|update|table)\s+([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)/gi; let m;
+    while ((m = re.exec(sql))) {
+      const name = m[2];
+      if (/^(select|set|where|values|dual|lateral|unnest)$/i.test(name)) continue;
+      const key = name.toLowerCase();
+      if (!sqlTables.has(key)) sqlTables.set(key, { table: name, ops: new Set(), usedBy: [] });
+      const e = sqlTables.get(key);
+      e.ops.add(op === 'WITH' ? 'SELECT' : op);
+      if (!e.usedBy.some((u) => u.class === t.fqn && u.member === member)) e.usedBy.push({ class: t.fqn, className: t.name, member, line, native, sample: sql.slice(0, 160) });
+    }
+  };
+  for (const t of types) {
+    for (const m of t.methods) {
+      const q = m.annotations.find((a) => a.name === 'Query');
+      if (q && String(q.attrs.nativeQuery) === 'true' && typeof q.attrs.value === 'string') addSql(q.attrs.value, t, m.name, m.line, true);
+      if (!m.body) continue;
+      const lits = (m.body.match(/"\u0001(\d+)\u0002"/g) || []).map((x) => t._file.strings[+x.replace(/\D/g, '')]);
+      // also join adjacent literals of one concatenated statement ("select * " + "from x")
+      for (const s of lits) if (SQL_START.test(s) && /\b(from|into|update|table|values|set)\b/i.test(s)) addSql(s, t, m.name, m.line, false);
+    }
+    // SQL kept in constants: static final String FIND_ALL = "select * from student";
+    for (const f of t.fields) {
+      if (!f.initializer) continue;
+      const s = (f.initializer.match(/"((?:[^"\\]|\\.)*)"/g) || []).map((x) => { try { return JSON.parse(x); } catch { return x.slice(1, -1); } }).join(' ');
+      if (SQL_START.test(s)) addSql(s, t, f.name, f.line, false);
+    }
+  }
+
   /* --------------- property usages --------------- */
   const propertyUsages = [];
   const pushUse = (key, cls, member, kind, line, def) => { if (key) propertyUsages.push({ key, class: cls.fqn, className: cls.name, member, kind, line, default: def ?? null }); };
@@ -408,6 +517,7 @@ function buildModel(parsedFiles) {
   return {
     types, byFqn, resolve, resolveBeans, implementors, classById,
     classes, beanDefs, endpoints, clients, listeners, scheduled, eventListeners, runners, postConstructs, asyncMethods, exceptionHandlers, aspects, caches, transactional, entities, propertyUsages, profilesInCode, security, interceptorRegs, enables,
+    sqlTables: [...sqlTables.values()].map((x) => ({ ...x, ops: [...x.ops] })).sort((a, b) => a.table.localeCompare(b.table)),
     INFRA_TYPES,
   };
 }

@@ -1,5 +1,5 @@
 'use strict';
-const yaml = require('js-yaml');
+const yaml = require('../../vendor/js-yaml/js-yaml.js');
 
 const SECRET_RE = /(password|passwd|secret|token|api[-_]?key|private[-_]?key|credential|client-secret)/i;
 
@@ -277,7 +277,9 @@ function analyzeConfig(docs, deps) {
   for (const p of active) profileSet.add(p.replace(/^\$\{[^:]*:?|\}$/g, '') || p);
 
   const isBootstrap = (f) => /(^|\/)bootstrap[-.]/.test(f);
-  const orderDocs = (list) => list.slice().sort((a, b) => (isBootstrap(b.file) - isBootstrap(a.file)) || a.file.localeCompare(b.file));
+  // later docs win: bootstrap first, local files next, Config Server files last (remote config has precedence)
+  const remote = (d) => (d.origin === 'config-server' ? 1 : 0);
+  const orderDocs = (list) => list.slice().sort((a, b) => (remote(a) - remote(b)) || (isBootstrap(b.file) - isBootstrap(a.file)) || a.file.localeCompare(b.file));
 
   function effective(profile) {
     const map = new Map();
@@ -343,7 +345,7 @@ function analyzeConfig(docs, deps) {
 
   // Serializable property listing per document
   const files = docs.map((d) => ({
-    file: d.file, profile: d.profile, index: d.index, error: d.error || null,
+    file: d.file, profile: d.profile, index: d.index, error: d.error || null, origin: d.origin || 'local',
     props: d.props.map((p) => ({ key: p.key, value: maskSecret(p.key, p.value), line: p.line, secret: SECRET_RE.test(p.key), placeholders: placeholders(p.value).map((x) => x.name) })),
   }));
   const effectiveOut = {};

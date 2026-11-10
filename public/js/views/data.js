@@ -3,8 +3,20 @@ import { renderMermaid, mermaidToolbar, createGraph, mmd } from '../graph.js';
 
 export async function render(ctx) {
   const { report: r, el, params } = ctx;
-  el.append(h('div.vhead', h('div', h('h2', 'Data model'), h('p', `${r.entities.length} persistent entities with their columns and JPA relationships, and the repositories that manage them.`))));
-  if (!r.entities.length) { el.append(empty('No @Entity / @Document classes found')); return; }
+  const sql = r.sqlTables || [];
+  el.append(h('div.vhead', h('div', h('h2', 'Data model'), h('p', `${r.entities.length} persistent entities with their columns and JPA relationships${sql.length ? `, and ${sql.length} table(s) referenced directly in SQL (JDBC / native queries)` : ''}.`))));
+  const sqlSection = () => (sql.length ? h('div.card', h('h3', `🗃️ Tables used in SQL (${sql.length})`),
+    h('div.small.muted', { style: { marginBottom: '8px' } }, 'Found in JdbcTemplate / JDBC strings, SQL constants and @Query(nativeQuery = true). Click a usage to open the code.'),
+    h('table.tbl', h('thead', h('tr', ['Table', 'Operations', 'Used by', 'Example'].map((x) => h('th', x)))),
+      h('tbody', sql.map((tb) => h('tr',
+        h('td.mono', h('b', tb.table)), h('td', tb.ops.map((o) => badge(o, o === 'SELECT' ? '#0ea5e9' : o === 'DELETE' ? '#dc2626' : '#f59e0b'))),
+        h('td.small', tb.usedBy.map((u) => h('div', h('a.lnk', { href: '#', onclick: (e) => { e.preventDefault(); ctx.open({ type: 'class', id: u.class, line: u.line }); } }, `${u.className}.${u.member}${/^[a-z]/.test(u.member) ? '()' : ''}`)))),
+        h('td.mono.small.muted', (tb.usedBy[0]?.sample || '').slice(0, 110))))))) : null);
+  if (!r.entities.length) {
+    el.append(sql.length ? sqlSection() : empty('No @Entity / @Document classes and no SQL table references found', 'This service may not access a database directly (e.g. it calls other services that own the data).'));
+    return;
+  }
+  el.append(sqlSection());
   let mode = params.get('mode') || 'er';
   let graph = null;
   const host = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } });

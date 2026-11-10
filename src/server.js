@@ -11,10 +11,10 @@ const { loadCode, trace } = require('./trace/tracer');
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
 const VENDOR = {
-  'cytoscape.js': 'node_modules/cytoscape/dist/cytoscape.min.js',
-  'dagre.js': 'node_modules/dagre/dist/dagre.min.js',
-  'cytoscape-dagre.js': 'node_modules/cytoscape-dagre/cytoscape-dagre.js',
-  'mermaid.js': 'node_modules/mermaid/dist/mermaid.min.js',
+  'cytoscape.js': 'vendor/cytoscape/cytoscape.min.js',
+  'dagre.js': 'vendor/dagre/dagre.min.js',
+  'cytoscape-dagre.js': 'vendor/cytoscape-dagre/cytoscape-dagre.js',
+  'mermaid.js': 'vendor/mermaid/mermaid.min.js',
 };
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
@@ -131,7 +131,9 @@ function createServer({ dataDir = path.join(ROOT, 'data'), extraHosts = [] } = {
         if (!r) return send(res, 404, { error: 'Unknown project' });
         const file = url.searchParams.get('file') || '';
         const abs = path.resolve(r.root, file);
-        if (!abs.startsWith(path.resolve(r.root))) return send(res, 403, { error: 'Forbidden' });
+        // inside the project, or one of the Config Server files the analysis explicitly loaded
+        const allowedExternal = (r.config.externalFiles || []).includes(file);
+        if (!abs.startsWith(path.resolve(r.root) + path.sep) && !allowedExternal) return send(res, 403, { error: 'Forbidden' });
         fs.readFile(abs, 'utf8', (err, text) => (err ? send(res, 404, { error: 'File not available (moved or deleted since analysis)' }) : send(res, 200, { file, text: text.length > 400000 ? text.slice(0, 400000) : text })));
         return;
       }

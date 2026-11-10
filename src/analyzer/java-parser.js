@@ -188,6 +188,8 @@ function parseAnnoValue(val, strings) {
   const sm = /^"\u0001(\d+)\u0002"$/.exec(val);
   if (sm) return strings[+sm[1]];
   if (val.startsWith('@')) return restore(val, strings);
+  // a constant reference (Foo.BAR, BAR): kept as a marker, resolved later against the project's constants
+  if (/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(val) && !/^(true|false|null)$/.test(val) && !/\.class$/.test(val) && /[A-Z]/.test(val)) return `\u0003${val}\u0004`;
   return restore(val, strings).replace(/\s+/g, ' ');
 }
 
